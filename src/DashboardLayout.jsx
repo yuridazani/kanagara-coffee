@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
-import { LayoutDashboard, Coffee, Calendar, MessageSquare, LogOut, ChevronLeft, Bell, Search, UserCircle, Settings } from 'lucide-react';
+import { LayoutDashboard, Coffee, Calendar, MessageSquare, LogOut, ChevronLeft, Bell, Search, UserCircle, Settings, Cog } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 
 // ==================== TopBar (dengan Search, Notifikasi, Profil) ====================
 const TopBar = () => {
@@ -138,6 +139,21 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                     {!isCollapsed && <span className="ml-3">Feedback</span>}
                 </NavLink>
 
+                {/* Menu Pengaturan Website */}
+                <NavLink
+                    to="/dashboard/website"
+                    className={({ isActive }) =>
+                        `flex items-center p-3 rounded-lg transition-colors ${
+                            isActive
+                                ? 'bg-wood-brown text-white'
+                                : 'hover:bg-wood-brown/50'
+                        } ${isCollapsed ? 'justify-center' : ''}`
+                    }
+                >
+                    <Cog className="flex-shrink-0" />
+                    {!isCollapsed && <span className="ml-3">Pengaturan Website</span>}
+                </NavLink>
+
                 {/* Opsi Settings di Sidebar (opsional) */}
                 <NavLink
                     to="/dashboard/settings"
@@ -191,6 +207,7 @@ const DashboardLayout = () => {
                     <footer className="text-center p-4 text-xs text-charcoal/50">
                         © {new Date().getFullYear()} Kanagara Coffee Dashboard.
                     </footer>
+                    <Toaster position="top-right" reverseOrder={false} />
                 </div>
             </div>
         </PrivateRoute>
