@@ -1,48 +1,118 @@
 // src/pages/DashboardPage.jsx
 
-import React from 'react';
-import { BarChart, TrendingUp, Star } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BarChart, Clock } from 'lucide-react';
 
-// Komponen Kalender Widget Sederhana
-const CalendarWidget = () => {
-    // Logika sederhana untuk menampilkan kalender (bisa dikembangkan lebih lanjut)
-    const today = new Date();
+// Komponen Kalender Widget Fungsional
+const CalendarWidget = ({ reservations }) => {
+    const [today, setToday] = useState(new Date(2025, 8, 1)); // Set ke September 2025 untuk konsistensi
+    const [hoveredInfo, setHoveredInfo] = useState(null);
+
     const month = today.toLocaleString('id-ID', { month: 'long' });
     const year = today.getFullYear();
-    // Simulasi tanggal dengan reservasi
-    const reservationDates = [5, 12, 25]; 
+
+    // Memproses reservasi untuk lookup yang cepat
+    const reservationsByDate = useMemo(() => {
+        const map = new Map();
+        reservations.forEach(res => {
+            const date = new Date(res.date).getDate();
+            if (!map.has(date)) {
+                map.set(date, []);
+            }
+            map.get(date).push(res);
+        });
+        return map;
+    }, [reservations]);
+
+    // Logika untuk membuat grid kalender dinamis
+    const firstDayOfMonth = new Date(year, today.getMonth(), 1).getDay();
+    const daysInMonth = new Date(year, today.getMonth() + 1, 0).getDate();
+
+    const handleMouseEnter = (date) => {
+        if (reservationsByDate.has(date)) {
+            setHoveredInfo({
+                date,
+                reservations: reservationsByDate.get(date)
+            });
+        }
+    };
+
+    const handleMouseLeave = () => {
+        setHoveredInfo(null);
+    };
 
     return (
-        <div className="bg-cream p-6 rounded-lg border border-wood-brown/20">
-            <h3 className="font-bold text-charcoal text-center mb-4">{month} {year}</h3>
-            <div className="grid grid-cols-7 gap-2 text-center text-xs">
-                {['M', 'S', 'S', 'R', 'K', 'J', 'S'].map(day => <div key={day} className="font-bold">{day}</div>)}
-                {Array.from({ length: 31 }, (_, i) => i + 1).map(date => (
-                    <div key={date} className="relative p-1">
-                        {date}
-                        {reservationDates.includes(date) && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full"></div>}
-                    </div>
-                ))}
+        <div className="relative flex gap-4">
+            {/* Kalender */}
+            <div className="bg-cream p-6 rounded-lg border border-wood-brown/20 w-full">
+                <h3 className="font-bold text-charcoal text-center mb-4">{month} {year}</h3>
+                <div className="grid grid-cols-7 gap-y-2 text-center text-sm">
+                    {['M', 'S', 'S', 'R', 'K', 'J', 'S'].map((day, i) => <div key={i} className="font-bold text-xs text-charcoal/60">{day}</div>)}
+                    
+                    {/* Sel kosong sebelum tanggal 1 */}
+                    {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`}></div>)}
+
+                    {/* Tanggal dalam sebulan */}
+                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(date => (
+                        <div 
+                            key={date} 
+                            className="relative p-2 cursor-pointer rounded-full transition-colors hover:bg-wood-brown/10"
+                            onMouseEnter={() => handleMouseEnter(date)}
+                            onMouseLeave={handleMouseLeave}
+                        >
+                            {date}
+                            {reservationsByDate.has(date) && <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-red-500 rounded-full"></div>}
+                        </div>
+                    ))}
+                </div>
             </div>
+            
+            {/* Tooltip Informasi Reservasi */}
+            {hoveredInfo && (
+                <div className="absolute left-full ml-4 w-64 bg-white p-4 rounded-lg shadow-xl border z-10 animate-fade-in">
+                    <h4 className="font-bold border-b pb-2 mb-2">Reservasi Tgl {hoveredInfo.date}</h4>
+                    <ul className="space-y-2">
+                        {hoveredInfo.reservations.map(res => (
+                            <li key={res.id} className="text-xs flex items-center">
+                                <Clock size={12} className="mr-2 text-charcoal/70" />
+                                <span><strong>{res.time}</strong> - {res.name}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
         </div>
-    )
-}
+    );
+};
+
 
 const DashboardPage = () => {
+    const [reservations, setReservations] = useState([]);
+
+    useEffect(() => {
+        // Ambil data reservasi dari localStorage saat komponen dimuat
+        const savedReservations = JSON.parse(localStorage.getItem('reservations')) || [];
+        setReservations(savedReservations);
+    }, []);
+
     // Data simulasi
-    const reservationsToday = 5;
+    const reservationsToday = reservations.filter(res => {
+        // Logika untuk mengecek apakah reservasi hari ini
+        const today = new Date(2025, 8, 5); // Simulasi hari ini adalah 5 September 2025
+        const resDate = new Date(res.date);
+        return resDate.toDateString() === today.toDateString();
+    }).length;
+
     const bestSellerMenu = "Brulee Caramel Latte";
     const averageRating = 4.8;
 
     return (
-        // PERBAIKAN: Semua konten, termasuk judul, ada di dalam satu card besar
         <div className="bg-soft-white p-8 rounded-xl shadow-lg space-y-12">
             <div>
                 <h1 className="font-serif font-black text-3xl text-wood-brown mb-2">Dashboard Ringkasan</h1>
                 <p className="text-charcoal/70">Selamat datang kembali, Owner! Berikut adalah ringkasan aktivitas hari ini.</p>
             </div>
             
-            {/* Kartu Statistik */}
             <section>
                 <h2 className="font-bold text-xl text-charcoal mb-4">Statistik Kunci</h2>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -61,17 +131,17 @@ const DashboardPage = () => {
                 </div>
             </section>
             
-            {/* Bagian Baru: Kalender & Grafik */}
             <section className="grid md:grid-cols-2 gap-8">
                 <div>
                     <h2 className="font-bold text-xl text-charcoal mb-4">Kalender Reservasi</h2>
-                    <CalendarWidget />
+                    <CalendarWidget reservations={reservations} />
                 </div>
                 <div>
                     <h2 className="font-bold text-xl text-charcoal mb-4">Grafik Reservasi (Mingguan)</h2>
-                    <div className="bg-cream p-6 rounded-lg border border-wood-brown/20 h-full flex items-center justify-center">
-                        <BarChart size={100} className="mx-auto text-charcoal/20"/>
-                        <p className="text-center text-charcoal/60 italic ml-4">
+                    {/* PERBAIKAN LAYOUT: Menggunakan flex-col dan justify-center agar konten tetap di tengah */}
+                    <div className="bg-cream p-6 rounded-lg border border-wood-brown/20 h-64 flex flex-col justify-center items-center">
+                        <BarChart size={100} className="text-charcoal/20"/>
+                        <p className="text-center text-charcoal/60 italic mt-4">
                             (Visualisasi grafik akan ditampilkan di sini)
                         </p>
                     </div>
