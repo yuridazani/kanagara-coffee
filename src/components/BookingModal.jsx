@@ -1,0 +1,148 @@
+// src/components/BookingModal.jsx
+
+import React, { useState } from 'react';
+import { X, Send, CheckCircle } from 'lucide-react';
+
+const BookingModal = ({ isOpen, onClose }) => {
+    const [bookingType, setBookingType] = useState('meja');
+    const [area, setArea] = useState('indoor');
+    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [submittedReservation, setSubmittedReservation] = useState(null);
+    const [formData, setFormData] = useState({
+        name: '', whatsapp: '', date: '', time: '', people: 1, eventDetails: ''
+    });
+
+    const handleInputChange = (e) => {
+        const { id, value } = e.target;
+        setFormData(prev => ({ ...prev, [id]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        
+        // Generate Nomor Reservasi Unik
+        const year = new Date().getFullYear();
+        const randomNumber = Math.floor(1000 + Math.random() * 9000);
+        const reservationNumber = `RSV-${year}-${randomNumber}`;
+
+        // Format nomor WhatsApp dengan kode negara +62
+        const formattedWhatsApp = `+62${formData.whatsapp}`;
+
+        const newReservation = {
+            id: Date.now(),
+            reservationNumber,
+            ...formData,
+            whatsapp: formattedWhatsApp, // Simpan dengan format lengkap
+            type: bookingType,
+            area: bookingType === 'meja' ? area : 'N/A',
+            status: 'Menunggu Konfirmasi',
+        };
+        
+        const existingReservations = JSON.parse(localStorage.getItem('reservations')) || [];
+        localStorage.setItem('reservations', JSON.stringify([newReservation, ...existingReservations]));
+        
+        setSubmittedReservation(newReservation);
+        setIsSubmitted(true);
+    };
+
+    const handleClose = () => {
+        setIsSubmitted(false);
+        setSubmittedReservation(null);
+        setFormData({ name: '', whatsapp: '', date: '', time: '', people: 1, eventDetails: '' });
+        setBookingType('meja');
+        setArea('indoor');
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
+            <div className="bg-soft-white rounded-lg shadow-2xl w-full max-w-lg relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <button onClick={handleClose} className="absolute top-4 right-4 text-charcoal/50 hover:text-charcoal"><X /></button>
+                <div className="p-8">
+                    {isSubmitted ? (
+                        // --- TAMPILAN SUKSES ---
+                        <div className="text-center py-10">
+                            <CheckCircle size={50} className="text-leaf-green mx-auto mb-4" />
+                            <h3 className="font-serif font-bold text-2xl text-wood-brown">Reservasi Terkirim!</h3>
+                            <p className="mt-2 text-charcoal/80">Silakan catat Nomor Reservasi Anda di bawah ini untuk melacak status pesanan.</p>
+                            <div className="my-6 p-4 bg-cream border-2 border-dashed border-wood-brown/50 rounded-lg">
+                                <p className="font-mono text-2xl font-bold text-wood-brown">{submittedReservation.reservationNumber}</p>
+                            </div>
+                            <p className="text-xs text-charcoal/60">
+                                (Sangat disarankan untuk melakukan screenshot bagian ini)
+                            </p>
+                            <button onClick={handleClose} className="mt-6 bg-wood-brown text-white font-bold py-3 px-6 rounded-full">
+                                Selesai
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <h2 className="font-serif font-black text-3xl text-wood-brown text-center mb-6">Formulir Reservasi</h2>
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div>
+                                    <label className="font-bold">Tipe Reservasi</label>
+                                    <div className="grid grid-cols-2 gap-3 mt-2">
+                                        <button type="button" onClick={() => setBookingType('meja')} className={`p-3 rounded-lg font-bold ${bookingType === 'meja' ? 'bg-wood-brown text-white' : 'bg-cream'}`}>Booking Meja</button>
+                                        <button type="button" onClick={() => setBookingType('event')} className={`p-3 rounded-lg font-bold ${bookingType === 'event' ? 'bg-wood-brown text-white' : 'bg-cream'}`}>Booking Event</button>
+                                    </div>
+                                </div>
+                                
+                                {bookingType === 'meja' && (
+                                    <div>
+                                        <label className="font-bold">Pilih Area</label>
+                                        <div className="grid grid-cols-3 gap-3 mt-2">
+                                            <button type="button" onClick={() => setArea('indoor')} className={`p-3 rounded-lg text-sm ${area === 'indoor' ? 'bg-light-brown text-white' : 'bg-cream'}`}>Indoor</button>
+                                            <button type="button" onClick={() => setArea('outdoor')} className={`p-3 rounded-lg text-sm ${area === 'outdoor' ? 'bg-light-brown text-white' : 'bg-cream'}`}>Outdoor</button>
+                                            <button type="button" onClick={() => setArea('vip')} className={`p-3 rounded-lg text-sm ${area === 'vip' ? 'bg-light-brown text-white' : 'bg-cream'}`}>VIP Room</button>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="name" className="font-bold">Nama</label>
+                                        <input type="text" id="name" value={formData.name} onChange={handleInputChange} required className="mt-1 w-full p-2 border rounded-md" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="whatsapp" className="font-bold">Nomor WhatsApp</label>
+                                        <div className="flex mt-1">
+                                            <span className="inline-flex items-center px-3 text-sm border border-r-0 rounded-l-md bg-cream">+62</span>
+                                            <input 
+                                                type="tel" 
+                                                id="whatsapp" 
+                                                placeholder="81234567890" 
+                                                value={formData.whatsapp} 
+                                                onChange={handleInputChange} 
+                                                required 
+                                                className="w-full p-2 border rounded-r-md" 
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="grid md:grid-cols-3 gap-4">
+                                     <div><label htmlFor="date" className="font-bold">Tanggal</label><input type="date" id="date" value={formData.date} onChange={handleInputChange} required className="mt-1 w-full p-2 border rounded-md" /></div>
+                                     <div><label htmlFor="time" className="font-bold">Jam</label><input type="time" id="time" value={formData.time} onChange={handleInputChange} required className="mt-1 w-full p-2 border rounded-md" /></div>
+                                     <div><label htmlFor="people" className="font-bold">Jumlah Orang</label><input type="number" id="people" min="1" value={formData.people} onChange={handleInputChange} required className="mt-1 w-full p-2 border rounded-md" /></div>
+                                </div>
+                                
+                                {bookingType === 'event' && (
+                                    <div>
+                                        <label htmlFor="eventDetails" className="font-bold">Detail Acara</label>
+                                        <textarea id="eventDetails" name="eventDetails" rows="3" value={formData.eventDetails} onChange={handleInputChange} placeholder="Contoh: Acara ulang tahun, butuh area outdoor dan indoor, dll." className="mt-1 w-full p-2 border rounded-md"></textarea>
+                                    </div>
+                                )}
+                                
+                                <p className="text-xs text-charcoal/70 pt-4 border-t">*Tim kami akan menghubungi Anda melalui WhatsApp untuk konfirmasi ketersediaan dan detail lebih lanjut.</p>
+                                <button type="submit" className="w-full bg-wood-brown hover:bg-light-brown text-white font-bold py-3 px-6 rounded-full flex items-center justify-center space-x-2"><Send size={20} /><span>Kirim Reservasi</span></button>
+                            </form>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default BookingModal;
