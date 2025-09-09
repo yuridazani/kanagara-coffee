@@ -4,18 +4,33 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Star, Trash2, Coffee, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AnalisisFeedback from '../components/AnalisisFeedback';
+import axiosClient from '../api/axiosClient';
 
 const KelolaFeedbackPage = () => {
     const [feedbackList, setFeedbackList] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [filterRating, setFilterRating] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
+    // Fungsi untuk mengambil data dari backend
+    const fetchFeedback = async () => {
+        try {
+            setLoading(true);
+            const response = await axiosClient.get('/feedback');
+            setFeedbackList(response.data.data);
+        } catch (error) {
+            toast.error("Gagal memuat data feedback.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const savedFeedback = JSON.parse(localStorage.getItem('feedback')) || [];
-        setFeedbackList(savedFeedback);
+        fetchFeedback();
     }, []);
 
+    // Fungsi untuk menghapus data di backend
     const deleteFeedback = (id) => {
         toast((t) => (
             <div>
@@ -23,12 +38,16 @@ const KelolaFeedbackPage = () => {
                 <div className="flex gap-2">
                     <button
                         className="w-full bg-red-500 hover:bg-red-600 text-white text-sm py-1 px-3 rounded-md"
-                        onClick={() => {
-                            const updatedFeedback = feedbackList.filter(fb => fb.id !== id);
-                            setFeedbackList(updatedFeedback);
-                            localStorage.setItem('feedback', JSON.stringify(updatedFeedback));
+                        onClick={async () => {
                             toast.dismiss(t.id);
-                            toast.success("Feedback dihapus.");
+                            const toastId = toast.loading("Menghapus...");
+                            try {
+                                await axiosClient.delete(`/feedback/${id}`);
+                                toast.success("Feedback dihapus.", { id: toastId });
+                                fetchFeedback();
+                            } catch (error) {
+                                toast.error("Gagal menghapus.", { id: toastId });
+                            }
                         }}
                     >
                         Hapus
@@ -80,10 +99,11 @@ const KelolaFeedbackPage = () => {
                 {/* Komponen Analisis */}
                 <AnalisisFeedback feedbackList={feedbackList} />
 
-                {/* Filter */}
+                 {/* Filter */}
                 <div className="mb-4">
                     <label className="mr-4 font-bold">Filter Rating Kafe:</label>
                     <select
+                        value={filterRating}
                         onChange={(e) => {
                             setFilterRating(Number(e.target.value));
                             setCurrentPage(1);
@@ -125,21 +145,35 @@ const KelolaFeedbackPage = () => {
                                         <MessageCircle size={20} className="text-wood-brown" />
                                         <h4 className="font-bold text-md text-wood-brown">Ulasan Kafe</h4>
                                     </div>
-                                    <div className="pl-8 mt-2">
-                                        <StarRating rating={fb.cafeRating} />
-                                        <p className="mt-2 text-charcoal/90 italic">"{fb.cafeComment}"</p>
-                                    </div>
+                                        <div className="pl-8 mt-2">
+                                            <StarRating rating={fb.cafeRating} />
+                                            <p className="mt-2 text-charcoal/90 italic">"{fb.cafeComment}"</p>
+                                            
+                                            {/* TAMPILKAN LINK FOTO TUNGGAL */}
+                                            {fb.photo_path && (
+                                                <div className="mt-4">
+                                                    <a 
+                                                        href={`http://localhost:8000/storage/${fb.photo_path}`} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="text-sm font-bold text-blue-600 hover:underline"
+                                                    >
+                                                        Lihat Foto dari Customer
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
                                 </div>
 
                                 {/* Ulasan Menu */}
-                                {fb.menuRatings && fb.menuRatings.length > 0 && (
+                                {fb.menu_ratings && fb.menu_ratings.length > 0 && (
                                     <div className="border-t pt-4">
                                         <div className="flex items-center gap-3">
                                             <Coffee size={20} className="text-leaf-green" />
                                             <h4 className="font-bold text-md text-leaf-green">Ulasan Menu</h4>
                                         </div>
                                         <div className="pl-8 mt-2 space-y-2">
-                                            {fb.menuRatings.map((mr, index) => (
+                                            {fb.menu_ratings.map((mr, index) => (
                                                 <div
                                                     key={index}
                                                     className="flex items-center justify-between text-sm"
@@ -160,24 +194,49 @@ const KelolaFeedbackPage = () => {
                     )}
                 </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex justify-center items-center mt-8 space-x-2">
-                        <button
-                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                            className="px-4 py-2 border rounded-lg disabled:opacity-50"
-                        >
-                            Prev
-                        </button>
-                        <span className="font-bold">Halaman {currentPage} dari {totalPages}</span>
-                        <button
-                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                            className="px-4 py-2 border rounded-lg disabled:opacity-50"
-                        >
-                            Next
-                        </button>
+                {/* Pagination - SELALU TAMPILKAN JIKA ADA DATA */}
+                {filteredFeedback.length > 0 && (
+                    <div className="flex flex-col items-center mt-8 space-y-2">
+                        {/* Info Pagination */}
+                        <div className="text-sm text-charcoal/70">
+                            Menampilkan {Math.min((currentPage - 1) * itemsPerPage + 1, filteredFeedback.length)} - {Math.min(currentPage * itemsPerPage, filteredFeedback.length)} dari {filteredFeedback.length} feedback
+                        </div>
+                        
+                        {/* Navigasi Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center space-x-2">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                                >
+                                    Prev
+                                </button>
+                                
+                                {/* Page Numbers */}
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`px-3 py-2 border rounded-lg ${
+                                            currentPage === page 
+                                                ? 'bg-wood-brown text-white border-wood-brown' 
+                                                : 'hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        {page}
+                                    </button>
+                                ))}
+                                
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

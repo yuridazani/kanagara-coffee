@@ -1,8 +1,9 @@
 // src/pages/KelolaReservasiPage.jsx
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Phone, Check, X, Eye, Calendar, CheckCircle, Clipboard, MessageSquare, ThumbsUp, Send } from 'lucide-react';
+import { Phone, Check, X, Eye, Calendar, CheckCircle, Clipboard, MessageSquare, ThumbsUp, Send, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import axiosClient from '../api/axiosClient';
 
 // ===============================================
 // ## MODAL RESCHEDULE
@@ -121,26 +122,28 @@ const DetailModal = ({ reservation, onClose }) => {
 
     // Fungsi untuk menyalin detail ke clipboard
     const copyDetailsToClipboard = () => {
-        let details = `**Detail Reservasi Kanagara Coffee**\n`;
-        details += `No: ${reservation.reservationNumber}\n`;
-        details += `Nama: ${reservation.name}\n`;
+        let details = `📋 **DETAIL RESERVASI KANAGARA** 📋\n\n`;
+        details += `No: *${reservation.reservationNumber}*\n`;
+        details += `Nama: *${reservation.name}*\n`;
         details += `WhatsApp: ${reservation.whatsapp}\n`;
         details += `Tanggal: ${reservation.date} @ ${reservation.time}\n`;
         details += `Jumlah: ${reservation.people} orang\n`;
-        details += `Status: ${reservation.status}\n`;
+        details += `Status: *${reservation.status}*\n`;
         
-        if (reservation.rescheduleHistory && reservation.rescheduleHistory.length > 0) {
-            details += `\n**Riwayat Reschedule:**\n`;
-            reservation.rescheduleHistory.forEach((history, index) => {
-                details += `${index + 1}. ${history.oldDate} ${history.oldTime} → ${history.newDate} ${history.newTime}\n`;
-                if (history.reason) details += `   Alasan: ${history.reason}\n`;
-            });
+        // --- PERUBAHAN DIMULAI DI SINI ---
+        details += `Tipe: ${reservation.type}\n`;
+        if (reservation.type === 'meja' && reservation.area) {
+            details += `Area: ${reservation.area}\n`;
+        }
+        if (reservation.type === 'event' && reservation.eventDetails) {
+            details += `Detail Acara: ${reservation.eventDetails}\n`;
         }
         
-        if (reservation.selectedMenus && reservation.selectedMenus.length > 0) {
-            details += `\n**Pesanan Menu:**\n`;
-            reservation.selectedMenus.forEach(item => {
-                details += `- ${item.quantity}x ${item.name}\n`;
+        // Cek dan tambahkan menu yang dipilih
+        if (reservation.selected_menus && reservation.selected_menus.length > 0) {
+            details += `\n🍽️ **Pesanan Menu:**\n`;
+            reservation.selected_menus.forEach(item => {
+                details += `- ${item.quantity}x ${item.menu_name}\n`;
             });
         }
         navigator.clipboard.writeText(details);
@@ -194,43 +197,36 @@ const DetailModal = ({ reservation, onClose }) => {
                         {/* Bukti DP */}
                         <div className="pt-3 mt-3 border-t">
                             <p className="font-bold">Bukti DP:</p>
-                            {reservation.dpProofUrl ? (
-                                <div className="mt-2">
-                                    <img 
-                                        src={reservation.dpProofUrl} 
-                                        alt="Bukti DP" 
-                                        className="rounded-lg max-w-xs border shadow-sm"
-                                        onError={(e) => {
-                                            e.target.style.display = 'none';
-                                            e.target.nextSibling.style.display = 'block';
-                                        }}
-                                    />
-                                    <div className="hidden bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500">
-                                        <p className="text-sm">Gambar tidak dapat dimuat</p>
+                                {reservation.dp_proof_path ? (
+                                    <div className="mt-2">
+                                        <img 
+                                            src={`http://localhost:8000/storage/${reservation.dp_proof_path}`} 
+                                            alt={`Bukti DP untuk ${reservation.name}`}
+                                            className="rounded-lg max-w-xs border shadow-sm"
+                                        />
+                                        <a 
+                                            href={`http://localhost:8000/storage/${reservation.dp_proof_path}`} 
+                                            download
+                                            className="mt-3 inline-block bg-leaf-green text-white font-bold py-2 px-4 rounded-lg text-sm hover:bg-green-700"
+                                        >
+                                            Download Bukti DP
+                                        </a>
                                     </div>
-                                </div>
-                            ) : reservation.status === 'Bukti DP Diupload' || reservation.status === 'DP Dibayar' ? (
-                                <div className="mt-2 bg-blue-50 border-2 border-dashed border-blue-200 rounded-lg p-4 text-center">
-                                    <div className="text-blue-600 mb-2">📄</div>
-                                    <p className="text-sm text-blue-700 font-medium">Bukti DP telah diupload</p>
-                                    <p className="text-xs text-blue-600 mt-1">*Akan ditampilkan setelah backend tersedia</p>
-                                </div>
-                            ) : (
-                                <div className="mt-2 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg p-4 text-center">
-                                    <div className="text-gray-400 mb-2">📄</div>
-                                    <p className="text-sm text-gray-500">Belum ada bukti DP</p>
-                                    <p className="text-xs text-gray-400 mt-1">Pelanggan belum mengupload bukti pembayaran</p>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="mt-2 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg p-4 text-center">
+                                        <div className="text-gray-400 mb-2">📄</div>
+                                        <p className="text-sm text-gray-500">Belum ada bukti DP</p>
+                                    </div>
+                                )}
                         </div>
 
                         {/* Menu yang dipilih */}
-                        {reservation.selectedMenus && reservation.selectedMenus.length > 0 ? (
-                             <div className="pt-3 mt-3 border-t">
+                        {reservation.selected_menus && reservation.selected_menus.length > 0 ? (
+                            <div className="pt-3 mt-3 border-t">
                                 <p className="font-bold">Menu yang Dipilih:</p>
                                 <ul className="list-disc list-inside bg-green-50 p-3 rounded-md mt-2">
-                                    {reservation.selectedMenus.map((item, index) => (
-                                        <li key={index} className="text-green-800">{item.quantity}x {item.name}</li>
+                                    {reservation.selected_menus.map((item, index) => (
+                                        <li key={index} className="text-green-800">{item.quantity}x {item.menu_name}</li>
                                     ))}
                                 </ul>
                             </div>
@@ -240,7 +236,6 @@ const DetailModal = ({ reservation, onClose }) => {
                                 <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg p-4 text-center mt-2">
                                     <div className="text-gray-400 mb-2">🍽</div>
                                     <p className="text-sm text-gray-500">Belum memilih menu</p>
-                                    <p className="text-xs text-gray-400 mt-1">Pelanggan akan memilih menu setelah DP dikonfirmasi</p>
                                 </div>
                             </div>
                         )}
@@ -259,6 +254,7 @@ const DetailModal = ({ reservation, onClose }) => {
 // ===============================================
 const KelolaReservasiPage = () => {
     const [reservations, setReservations] = useState([]);
+    const [loading, setLoading] = useState(true); // <-- Added loading state
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('All');
     const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'descending' });
@@ -267,22 +263,76 @@ const KelolaReservasiPage = () => {
     const [rescheduleModal, setRescheduleModal] = useState({ show: false, reservation: null });
     const itemsPerPage = 10;
 
+    // --- REPLACED localStorage with API calls ---
+    const fetchReservations = async () => {
+        try {
+            setLoading(true);
+            const response = await axiosClient.get('/reservations');
+            setReservations(response.data.data);
+        } catch (error) {
+            toast.error("Gagal memuat data reservasi.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const savedReservations = JSON.parse(localStorage.getItem('reservations')) || [];
-        setReservations(savedReservations);
+        fetchReservations();
     }, []);
 
-    const persistAndUpdate = (updatedReservations) => {
-        setReservations(updatedReservations);
-        localStorage.setItem('reservations', JSON.stringify(updatedReservations));
+    const updateStatus = async (id, newStatus) => {
+        const toastId = toast.loading("Memperbarui status...");
+        try {
+            await axiosClient.put(`/reservations/${id}`, { status: newStatus });
+            toast.success(`Status berhasil diubah menjadi "${newStatus}"!`, { id: toastId });
+            fetchReservations(); // Refresh data
+        } catch (error) {
+            toast.error("Gagal memperbarui status.", { id: toastId });
+        }
     };
-    
-    const updateStatus = (id, newStatus) => {
-        const updatedReservations = reservations.map(res => 
-            res.id === id ? { ...res, status: newStatus } : res
-        );
-        persistAndUpdate(updatedReservations);
-        toast.success(`Status reservasi diubah menjadi "${newStatus}"!`);
+
+    // --- FUNGSI HAPUS BARU ---
+    const handleDelete = (id) => {
+        toast((t) => (
+            <div className="flex flex-col gap-4 p-2">
+                <div>
+                    <p className="font-bold text-charcoal">Konfirmasi Penghapusan</p>
+                    <p className="text-sm text-charcoal/80 mt-1">
+                        Apakah Anda yakin ingin menghapus reservasi ini secara permanen?
+                    </p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        className="w-full bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-2 px-3 rounded-md"
+                        onClick={async () => {
+                            // Tutup toast ini dulu
+                            toast.dismiss(t.id);
+                            
+                            // Tampilkan toast loading baru saat proses hapus
+                            const deleteToastId = toast.loading("Menghapus reservasi...");
+                            
+                            try {
+                                await axiosClient.delete(`/reservations/${id}`);
+                                toast.success("Reservasi berhasil dihapus.", { id: deleteToastId });
+                                fetchReservations(); // Ambil ulang data terbaru
+                            } catch (error) {
+                                toast.error("Gagal menghapus reservasi.", { id: deleteToastId });
+                            }
+                        }}
+                    >
+                        Ya, Hapus
+                    </button>
+                    <button
+                        className="w-full bg-gray-200 hover:bg-gray-300 text-charcoal text-sm font-bold py-2 px-3 rounded-md"
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        Batal
+                    </button>
+                </div>
+            </div>
+        ), {
+            duration: 6000, // Toast akan hilang otomatis setelah 6 detik jika tidak ada aksi
+        });
     };
 
     const confirmAndUpdateStatus = (id, newStatus, message) => {
@@ -342,29 +392,20 @@ const KelolaReservasiPage = () => {
         sendWhatsApp(reservation, message);
     };
     
-    const handleReschedule = (id, newData, reason) => {
-        const updatedReservations = reservations.map(res => {
-            if (res.id === id) {
-                const rescheduleHistory = res.rescheduleHistory || [];
-                const newHistory = {
-                    oldDate: res.date,
-                    oldTime: res.time,
-                    newDate: newData.date,
-                    newTime: newData.time,
-                    reason: reason || 'Tidak ada alasan khusus',
-                    timestamp: new Date().toISOString()
-                };
-                
-                return {
-                    ...res,
-                    ...newData,
-                    rescheduleHistory: [...rescheduleHistory, newHistory]
-                };
-            }
-            return res;
-        });
-        
-        persistAndUpdate(updatedReservations);
+    const handleReschedule = async (id, newData, reason) => {
+        const toastId = toast.loading("Menyimpan perubahan jadwal...");
+        try {
+            await axiosClient.put(`/reservations/${id}`, {
+                date: newData.date,
+                time: newData.time,
+                people: newData.people,
+                // Kita bisa tambahkan 'reason' jika backend mendukungnya
+            });
+            toast.success("Jadwal berhasil diubah!", { id: toastId });
+            fetchReservations(); // Refresh data
+        } catch (error) {
+            toast.error("Gagal mengubah jadwal.", { id: toastId });
+        }
     };
 
     const openRescheduleModal = (reservation) => {
@@ -383,14 +424,9 @@ const KelolaReservasiPage = () => {
         }
         if (searchTerm) { 
             items = items.filter(res => {
-                // =================================================================
-                // ## PERBAIKAN DI SINI ##
-                // Menambahkan pengecekan untuk memastikan 'name' dan 'reservationNumber' ada 
-                // sebelum memanggil toLowerCase() untuk mencegah error.
                 const nameMatch = res.name && res.name.toLowerCase().includes(searchTerm.toLowerCase());
                 const numberMatch = res.reservationNumber && res.reservationNumber.toLowerCase().includes(searchTerm.toLowerCase());
                 return nameMatch || numberMatch;
-                // =================================================================
             }); 
         }
         
@@ -544,6 +580,17 @@ const KelolaReservasiPage = () => {
                                                 <a href={`https://wa.me/${res.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 flex items-center gap-1">
                                                     <Phone size={14}/> WhatsApp
                                                 </a>
+
+                                                {/* --- TAMBAHKAN TOMBOL HAPUS DI SINI --- */}
+                                                {(res.status === 'Selesai' || res.status === 'Ditolak') && (
+                                                    <button 
+                                                        onClick={() => handleDelete(res.id)} 
+                                                        className="text-red-500 hover:text-red-700" 
+                                                        title="Hapus Permanen"
+                                                    >
+                                                        <Trash2 size={18}/>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

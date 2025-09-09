@@ -1,38 +1,79 @@
-// src/pages/UploadDPPage.jsx
+// frontend/src/pages/UploadDPPage.jsx
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { Upload, CheckCircle } from 'lucide-react';
+import axiosClient from '../api/axiosClient';
+import toast from 'react-hot-toast';
 
 const UploadDPPage = () => {
     const { reservationNumber } = useParams();
-    const navigate = useNavigate();
     const [reservation, setReservation] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [file, setFile] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        const allReservations = JSON.parse(localStorage.getItem('reservations')) || [];
-        const found = allReservations.find(res => res.reservationNumber === reservationNumber);
-        if (found) {
-            setReservation(found);
-        }
+        const fetchReservation = async () => {
+            try {
+                const response = await axiosClient.post('/reservations/search', {
+                    reservationNumber: reservationNumber,
+                });
+                
+                if (response.data.data) {
+                    setReservation(response.data.data);
+                } else {
+                     toast.error("Reservasi tidak ditemukan.");
+                }
+            } catch (error) {
+                toast.error("Gagal memuat data reservasi.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchReservation();
     }, [reservationNumber]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Simulasi: Ubah status di localStorage
-        const allReservations = JSON.parse(localStorage.getItem('reservations')) || [];
-        const updatedReservations = allReservations.map(res => 
-            res.reservationNumber === reservationNumber ? { ...res, status: 'DP Dibayar' } : res
-        );
-        localStorage.setItem('reservations', JSON.stringify(updatedReservations));
-        setIsSubmitted(true);
+        if (!file) {
+            toast.error("Silakan pilih file bukti transfer terlebih dahulu.");
+            return;
+        }
+        if (!reservation) {
+             toast.error("Data reservasi tidak valid, tidak bisa mengupload.");
+             return;
+        }
+
+        setSubmitting(true);
+        const formData = new FormData();
+        formData.append('proof', file);
+
+        const toastId = toast.loading("Mengunggah bukti...");
+
+        try {
+            await axiosClient.post(`/reservations/${reservation.id}/upload-dp`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            
+            toast.success("Bukti berhasil diunggah!", { id: toastId });
+            setIsSubmitted(true);
+        } catch (error) {
+            toast.error("Gagal mengunggah bukti.", { id: toastId });
+        } finally {
+            setSubmitting(false);
+        }
     };
 
+    if (loading) {
+        return <div className="text-center p-10">Memuat data reservasi...</div>;
+    }
+
     if (!reservation) {
-        return <div>Memuat data reservasi...</div>;
+        return <div className="text-center p-10 text-red-500">Reservasi dengan nomor {reservationNumber} tidak ditemukan.</div>;
     }
     
     return (
@@ -59,11 +100,21 @@ const UploadDPPage = () => {
                                 </div>
                                 <div>
                                     <label htmlFor="proof" className="font-bold text-charcoal">Upload Bukti Transfer</label>
-                                    <input type="file" id="proof" required className="mt-2 w-full text-sm p-2 border rounded-md file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cream file:text-wood-brown hover:file:bg-wood-brown/20"/>
+                                    <input 
+                                        type="file" 
+                                        id="proof" 
+                                        required 
+                                        onChange={(e) => setFile(e.target.files[0])}
+                                        className="mt-2 w-full text-sm p-2 border rounded-md file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cream file:text-wood-brown hover:file:bg-wood-brown/20"
+                                    />
                                 </div>
-                                <button type="submit" className="w-full bg-wood-brown hover:bg-light-brown text-white font-bold py-3 px-6 rounded-full flex items-center justify-center space-x-2">
+                                <button 
+                                    type="submit" 
+                                    disabled={submitting}
+                                    className="w-full bg-wood-brown hover:bg-light-brown text-white font-bold py-3 px-6 rounded-full flex items-center justify-center space-x-2 disabled:bg-gray-400"
+                                >
                                     <Upload size={20} />
-                                    <span>Kirim Bukti Pembayaran</span>
+                                    <span>{submitting ? 'Mengirim...' : 'Kirim Bukti Pembayaran'}</span>
                                 </button>
                             </form>
                         )}

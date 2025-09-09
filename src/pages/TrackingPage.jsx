@@ -5,25 +5,33 @@ import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { Search, Calendar, Info, Phone } from 'lucide-react';
+import axiosClient from '../api/axiosClient'; // <-- Added axiosClient import
+import toast from 'react-hot-toast';
 
 const TrackingPage = () => {
     const [searchResult, setSearchResult] = useState(null);
     const [notFound, setNotFound] = useState(false);
+    const [loading, setLoading] = useState(false); // <-- Added loading state
 
-    const handleSearch = (e) => {
+    const handleSearch = async (e) => {
         e.preventDefault();
-        const reservationNumber = e.target.reservationNumber.value;
-        const name = e.target.name.value;
-        const allReservations = JSON.parse(localStorage.getItem('reservations')) || [];
-        const found = allReservations.find(
-            res => res.reservationNumber === reservationNumber && res.name.toLowerCase() === name.toLowerCase()
-        );
-        if (found) {
-            setSearchResult(found);
-            setNotFound(false);
-        } else {
-            setSearchResult(null);
+        setLoading(true);
+        setNotFound(false);
+        setSearchResult(null);
+
+        const payload = {
+            reservationNumber: e.target.reservationNumber.value,
+            name: e.target.name.value,
+        };
+
+        try {
+            const response = await axiosClient.post('/reservations/search', payload);
+            setSearchResult(response.data.data);
+        } catch (error) {
             setNotFound(true);
+            console.error(error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -113,8 +121,8 @@ const TrackingPage = () => {
                         <form onSubmit={handleSearch} className="mt-8 bg-soft-white p-8 rounded-lg shadow-lg flex flex-col md:flex-row gap-4">
                             <input type="text" name="reservationNumber" placeholder="Nomor Reservasi (cth: RSV-xxxx-xxxx)" required className="w-full p-3 border rounded-md" />
                             <input type="text" name="name" placeholder="Nama Anda" required className="w-full p-3 border rounded-md" />
-                            <button type="submit" className="bg-wood-brown text-white font-bold p-3 rounded-md flex-shrink-0">
-                                <Search />
+                            <button type="submit" disabled={loading} className="bg-wood-brown text-white font-bold p-3 rounded-md flex-shrink-0">
+                                {loading ? 'Mencari...' : <Search />}
                             </button>
                         </form>
 

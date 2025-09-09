@@ -1,32 +1,37 @@
-// src/pages/KelolaMenuPage.jsx
-
+// frontend/src/pages/KelolaMenuPage.jsx
 import React, { useState, useMemo, useEffect } from 'react';
-import { useMenu } from '../context/MenuContext';
 import { Edit, Trash2, PlusCircle, X, Tag } from 'lucide-react';
 import toast from 'react-hot-toast';
+import axiosClient from '../api/axiosClient';
 
-// ===============================================
-// ## KOMPONEN MODAL UNTUK FORM TAMBAH/EDIT MENU
-// ===============================================
-const MenuFormModal = ({ isOpen, onClose, initialData, onSubmit }) => {
-    const { categories } = useMenu();
-    const [formData, setFormData] = useState({ name: '', category: '', price: '', description: '', imageUrl: '', tag: 'None' });
-
-    // Daftar tag yang bisa dipilih
-    const availableTags = ['None', 'Best Seller', 'Popular', 'Recommended', 'Must Try'];
+const MenuFormModal = ({ isOpen, onClose, initialData, onSubmit, categories }) => {
+    const [formData, setFormData] = useState({});
+    const [imageFile, setImageFile] = useState(null);
+    
+    const availableTags = ['None', 'Best Seller', 'Popular', 'Recommended', 'Must Try', 'New Menu'];
 
     useEffect(() => {
-        setFormData(initialData || { name: '', category: categories[0] || '', price: '', description: '', imageUrl: '', tag: 'None' });
-    }, [initialData, categories]);
+        if (initialData) {
+            setFormData(initialData);
+        } else {
+            setFormData({ name: '', category: categories[0] || '', price: '', description: '', tag: 'None' });
+        }
+        setImageFile(null);
+    }, [initialData, categories, isOpen]);
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+    const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const handleImageChange = (e) => setImageFile(e.target.files[0]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSubmit(formData);
+        const submissionData = new FormData();
+        Object.keys(formData).forEach(key => {
+            submissionData.append(key, formData[key] || '');
+        });
+        if (imageFile) {
+            submissionData.append('image', imageFile);
+        }
+        onSubmit(submissionData, !!initialData);
     };
 
     if (!isOpen) return null;
@@ -52,8 +57,8 @@ const MenuFormModal = ({ isOpen, onClose, initialData, onSubmit }) => {
                                 </select>
                             </div>
                             <div>
-                                <label htmlFor="price" className="font-bold">Harga (cth: 25k)</label>
-                                <input type="text" name="price" value={formData.price || ''} onChange={handleChange} required className="mt-1 w-full p-2 border rounded-md"/>
+                                <label htmlFor="price" className="font-bold">Harga</label>
+                                <input type="text" name="price" placeholder="cth: 25000" value={formData.price || ''} onChange={handleChange} required className="mt-1 w-full p-2 border rounded-md"/>
                             </div>
                         </div>
                         <div>
@@ -67,8 +72,8 @@ const MenuFormModal = ({ isOpen, onClose, initialData, onSubmit }) => {
                             <textarea name="description" rows="3" value={formData.description || ''} onChange={handleChange} className="mt-1 w-full p-2 border rounded-md"></textarea>
                         </div>
                         <div>
-                            <label htmlFor="imageUrl" className="font-bold">URL Gambar (Opsional)</label>
-                            <input type="text" name="imageUrl" value={formData.imageUrl || ''} onChange={handleChange} className="mt-1 w-full p-2 border rounded-md"/>
+                            <label htmlFor="image" className="font-bold">Upload Gambar (Opsional)</label>
+                            <input type="file" name="image" onChange={handleImageChange} className="mt-1 w-full p-2 border rounded-md text-sm"/>
                         </div>
                         <button type="submit" className="w-full bg-wood-brown hover:bg-light-brown text-white font-bold py-3 px-6 rounded-full">
                             Simpan Perubahan
@@ -80,53 +85,127 @@ const MenuFormModal = ({ isOpen, onClose, initialData, onSubmit }) => {
     );
 };
 
-// ===============================================
-// ## KOMPONEN UTAMA KELOLA MENU (YANG DIPERBARUI)
-// ===============================================
 const KelolaMenuPage = () => {
-    // Asumsi useMenu sekarang juga menyediakan addCategory dan deleteCategory
-    const { menuItems, categories, addMenuItem, editMenuItem, deleteMenuItem, addCategory, deleteCategory } = useMenu();
-    
-    // State untuk form kategori baru
+    const [menuItems, setMenuItems] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [newCategoryName, setNewCategoryName] = useState('');
-    
+
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'ascending' });
     const [currentPage, setCurrentPage] = useState(1);
     const [filterCategory, setFilterCategory] = useState('All');
-    
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
-
     const itemsPerPage = 10;
+
+    const fetchMenus = async () => {
+        try {
+            setLoading(true);
+            const response = await axiosClient.get('/menus');
+            const menusFromApi = response.data.data;
+            setMenuItems(menusFromApi);
+
+            // Extract unique categories from menu items
+            const uniqueCategories = [...new Set(menusFromApi.map(item => item.category))];
+            setCategories(uniqueCategories);
+
+        } catch (error) {
+            toast.error("Gagal memuat data menu dari server.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { 
+        fetchMenus(); 
+    }, []);
+
+    const handleAddCategory = () => {
+        if (!newCategoryName.trim()) return toast.error("Nama kategori tidak boleh kosong.");
+        if (categories.map(c => c.toLowerCase()).includes(newCategoryName.trim().toLowerCase())) {
+            return toast.error("Kategori sudah ada.");
+        }
+        setCategories(prev => [...prev, newCategoryName.trim()].sort());
+        setNewCategoryName('');
+        toast.success(`Kategori "${newCategoryName.trim()}" ditambahkan.`);
+    };
+
+    const handleDeleteCategory = (categoryToDelete) => {
+        const isCategoryInUse = menuItems.some(item => item.category === categoryToDelete);
+        if (isCategoryInUse) {
+            return toast.error(`Kategori "${categoryToDelete}" masih digunakan.`);
+        }
+        setCategories(prev => prev.filter(cat => cat !== categoryToDelete));
+        toast.success(`Kategori "${categoryToDelete}" dihapus.`);
+    };
+    
+    const handleFormSubmit = async (formData, isEdit) => {
+        const toastId = toast.loading(isEdit ? 'Memperbarui menu...' : 'Menambahkan menu...');
+        try {
+            if (isEdit) {
+                formData.append('_method', 'PUT'); 
+                await axiosClient.post(`/menus/${editingItem.id}`, formData, {
+                     headers: { 'Content-Type': 'multipart/form-data' },
+                });
+                toast.success("Menu berhasil diperbarui!", { id: toastId });
+            } else {
+                await axiosClient.post('/menus', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+                toast.success("Menu baru berhasil ditambahkan!", { id: toastId });
+            }
+            fetchMenus();
+            handleCloseModal();
+        } catch (error) {
+            toast.error("Terjadi kesalahan.", { id: toastId });
+        }
+    };
+    
+    const handleDelete = (id) => {
+        toast((t) => (
+            <div>
+                <p className="font-bold mb-2">Yakin ingin menghapus menu ini?</p>
+                <div className="flex gap-2">
+                    <button
+                        className="w-full bg-red-600 text-white text-sm py-1 px-3 rounded"
+                        onClick={async () => {
+                            toast.dismiss(t.id);
+                            const toastId = toast.loading("Menghapus menu...");
+                            try {
+                                await axiosClient.delete(`/menus/${id}`);
+                                toast.success("Menu berhasil dihapus.", { id: toastId });
+                                fetchMenus();
+                            } catch (error) {
+                                toast.error("Gagal menghapus menu.", { id: toastId });
+                            }
+                        }}
+                    >
+                        Hapus
+                    </button>
+                    <button className="w-full bg-gray-200 text-sm py-1 px-3 rounded" onClick={() => toast.dismiss(t.id)}>
+                        Batal
+                    </button>
+                </div>
+            </div>
+        ));
+    };
 
     const filteredAndSortedItems = useMemo(() => {
         let items = [...menuItems];
-
-        if (filterCategory !== 'All') {
-            items = items.filter(item => item.category === filterCategory);
-        }
-
-        if (searchTerm) {
-            items = items.filter(item => 
-                item.name.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-        }
-
+        if (filterCategory !== 'All') items = items.filter(item => item.category === filterCategory);
+        if (searchTerm) items = items.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
         items.sort((a, b) => {
             if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
             if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
             return 0;
         });
-        
         return items;
     }, [menuItems, filterCategory, searchTerm, sortConfig]);
 
     const requestSort = (key) => {
         let direction = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
         setSortConfig({ key, direction });
     };
 
@@ -142,100 +221,14 @@ const KelolaMenuPage = () => {
         setIsModalOpen(false);
         setEditingItem(null);
     };
-
-    const handleFormSubmit = (formData) => {
-        if (editingItem) {
-            editMenuItem({ ...formData, id: editingItem.id });
-            toast.success("Menu berhasil diperbarui!");
-        } else {
-            addMenuItem(formData);
-            toast.success("Menu baru berhasil ditambahkan!");
-        }
-        handleCloseModal();
-    };
-
-    const handleDelete = (id) => {
-        toast((t) => (
-            <div>
-                <p className="font-bold mb-2">Yakin ingin menghapus menu ini?</p>
-                <div className="flex gap-2">
-                    <button
-                        className="w-full bg-red-600 text-white text-sm py-1 px-3 rounded"
-                        onClick={() => {
-                            deleteMenuItem(id);
-                            toast.dismiss(t.id);
-                            toast.success("Menu berhasil dihapus.");
-                        }}
-                    >
-                        Hapus
-                    </button>
-                    <button
-                        className="w-full bg-gray-200 text-sm py-1 px-3 rounded"
-                        onClick={() => toast.dismiss(t.id)}
-                    >
-                        Batal
-                    </button>
-                </div>
-            </div>
-        ));
-    };
     
-    // [BARU] Handler untuk menambah kategori
-    const handleAddCategory = (e) => {
-        e.preventDefault();
-        if (!newCategoryName.trim()) {
-            toast.error("Nama kategori tidak boleh kosong.");
-            return;
-        }
-        if (categories.some(cat => cat.toLowerCase() === newCategoryName.trim().toLowerCase())) {
-            toast.error("Kategori dengan nama tersebut sudah ada.");
-            return;
-        }
-        addCategory(newCategoryName.trim());
-        toast.success(`Kategori "${newCategoryName.trim()}" berhasil ditambahkan.`);
-        setNewCategoryName('');
-    };
-
-    // [BARU] Handler untuk menghapus kategori
-    const handleDeleteCategory = (categoryName) => {
-        // Cek apakah kategori masih digunakan oleh item menu
-        const isCategoryInUse = menuItems.some(item => item.category === categoryName);
-        if (isCategoryInUse) {
-            toast.error(`Kategori "${categoryName}" tidak bisa dihapus karena masih digunakan.`, { duration: 4000 });
-            return;
-        }
-
-        toast((t) => (
-            <div>
-                <p className="font-bold mb-2">Hapus kategori "{categoryName}"?</p>
-                <div className="flex gap-2">
-                    <button
-                        className="w-full bg-red-600 text-white text-sm py-1 px-3 rounded"
-                        onClick={() => {
-                            deleteCategory(categoryName);
-                            toast.dismiss(t.id);
-                            toast.success(`Kategori "${categoryName}" berhasil dihapus.`);
-                        }}
-                    >
-                        Ya, Hapus
-                    </button>
-                    <button
-                        className="w-full bg-gray-200 text-sm py-1 px-3 rounded"
-                        onClick={() => toast.dismiss(t.id)}
-                    >
-                        Batal
-                    </button>
-                </div>
-            </div>
-        ));
-    };
-
     const getTagClass = (tag) => {
         switch (tag) {
             case 'Best Seller': return 'bg-yellow-100 text-yellow-800';
             case 'Popular': return 'bg-blue-100 text-blue-800';
             case 'Recommended': return 'bg-green-100 text-green-800';
             case 'Must Try': return 'bg-purple-100 text-purple-800';
+            case 'New Menu': return 'bg-pink-100 text-pink-800';
             default: return 'hidden';
         }
     };
@@ -247,45 +240,36 @@ const KelolaMenuPage = () => {
                 onClose={handleCloseModal}
                 initialData={editingItem}
                 onSubmit={handleFormSubmit}
+                categories={categories}
             />
 
             <div className="bg-soft-white p-8 rounded-xl shadow-lg space-y-8">
-                {/* [BARU] Bagian Kelola Kategori */}
+                {/* Bagian Kelola Kategori */}
                 <fieldset className="border p-4 rounded-lg">
                     <legend className="font-serif font-bold text-xl px-2 text-wood-brown">Kelola Kategori</legend>
                     <div className="flex flex-col md:flex-row gap-6">
-                        {/* Daftar Kategori */}
                         <div className="flex-grow">
-                            <h3 className="font-semibold mb-2">Daftar Kategori Saat Ini:</h3>
+                            <h3 className="font-semibold mb-2">Daftar Kategori:</h3>
                             <div className="flex flex-wrap gap-2">
-                                {categories.length > 0 ? categories.map(cat => (
-                                    <div key={cat} className="flex items-center bg-gray-200 rounded-full px-3 py-1 text-sm">
+                                {categories.map(cat => (
+                                    <div key={cat} className="flex items-center bg-gray-200 rounded-full px-3 py-1 text-sm group">
                                         <span>{cat}</span>
-                                        <button 
-                                            onClick={() => handleDeleteCategory(cat)} 
-                                            className="ml-2 text-gray-500 hover:text-red-600"
-                                            title={`Hapus kategori ${cat}`}
-                                        >
-                                            <X size={14} />
-                                        </button>
+                                        <button onClick={() => handleDeleteCategory(cat)} className="ml-2 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100"><X size={14} /></button>
                                     </div>
-                                )) : <p className="text-sm text-gray-500 italic">Belum ada kategori.</p>}
+                                ))}
                             </div>
                         </div>
-                        {/* Form Tambah Kategori */}
                         <div className="flex-shrink-0 md:w-1/3">
-                             <form onSubmit={handleAddCategory} className="flex gap-2 items-center">
+                            <div className="flex gap-2 items-center">
                                 <input 
                                     type="text" 
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                    value={newCategoryName} 
+                                    onChange={(e) => setNewCategoryName(e.target.value)} 
                                     placeholder="Nama kategori baru..." 
                                     className="w-full p-2 border rounded-lg text-sm"
                                 />
-                                <button type="submit" className="bg-leaf-green hover:bg-green-700 text-white font-bold p-2 rounded-lg">
-                                    <PlusCircle size={20} />
-                                </button>
-                            </form>
+                                <button onClick={handleAddCategory} className="bg-leaf-green text-white p-2 rounded-lg"><PlusCircle size={20} /></button>
+                            </div>
                         </div>
                     </div>
                 </fieldset>
@@ -303,37 +287,45 @@ const KelolaMenuPage = () => {
                     </div>
 
                     <div className="pt-4 mt-4 border-t">
-                         {/* Filter dan Search Bar */}
                         <div className="flex flex-col md:flex-row gap-4 mb-4">
-                            <input 
-                                type="text" 
-                                placeholder="Cari menu..." 
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full md:max-w-sm p-2 border rounded-lg"
-                            />
-                            <select
-                                onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
-                                className="w-full md:max-w-xs p-2 border rounded-lg bg-white"
-                            >
+                            <input type="text" placeholder="Cari menu..." onChange={(e) => setSearchTerm(e.target.value)} className="w-full md:max-w-sm p-2 border rounded-lg" />
+                            <select onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }} className="w-full md:max-w-xs p-2 border rounded-lg bg-white">
                                 <option value="All">Semua Kategori</option>
                                 {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
                         </div>
                         
-                        {/* Tabel Menu */}
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-gray-50">
                                     <tr className="border-b">
-                                        <th className="p-4 cursor-pointer" onClick={() => requestSort('name')}>Nama Menu</th>
-                                        <th className="p-4 cursor-pointer" onClick={() => requestSort('category')}>Kategori</th>
-                                        <th className="p-4 cursor-pointer" onClick={() => requestSort('price')}>Harga</th>
-                                        <th className="p-4">Aksi</th>
+                                         <th className="p-4">Gambar</th>
+                                         <th className="p-4 cursor-pointer" onClick={() => requestSort('name')}>Nama Menu</th>
+                                         <th className="p-4 cursor-pointer" onClick={() => requestSort('category')}>Kategori</th>
+                                         <th className="p-4 cursor-pointer" onClick={() => requestSort('price')}>Harga</th>
+                                         <th className="p-4">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {paginatedItems.map(item => (
+                                    {loading ? (
+                                        <tr><td colSpan="5" className="text-center p-10">Memuat...</td></tr>
+                                    ) : paginatedItems.map(item => (
                                         <tr key={item.id} className="border-b hover:bg-cream">
+                                            {/* --- PERBAIKAN UTAMA: TAMPILAN GAMBAR YANG LEBIH BAIK --- */}
+                                            <td className="p-4">
+                                                {item.image_path ? (
+                                                    <img 
+                                                        src={`http://localhost:8000/storage/${item.image_path}`} 
+                                                        alt={item.name} 
+                                                        className="w-16 h-16 object-cover rounded-md border"
+                                                    />
+                                                ) : (
+                                                    <div className="w-16 h-16 bg-gray-100 rounded-md flex items-center justify-center text-xs text-gray-400">
+                                                        No Image
+                                                    </div>
+                                                )}
+                                            </td>
+                                            {/* --- AKHIR PERBAIKAN --- */}
                                             <td className="p-4">
                                                 <p className="font-bold">{item.name}</p>
                                                 {item.tag && item.tag !== 'None' && (
@@ -343,7 +335,7 @@ const KelolaMenuPage = () => {
                                                 )}
                                             </td>
                                             <td className="p-4">{item.category}</td>
-                                            <td className="p-4">{item.price}</td>
+                                            <td className="p-4">{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.price)}</td>
                                             <td className="p-4 flex space-x-2">
                                                 <button onClick={() => handleOpenModal(item)} className="text-blue-600 hover:text-blue-800"><Edit size={18}/></button>
                                                 <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18}/></button>
@@ -354,7 +346,6 @@ const KelolaMenuPage = () => {
                             </table>
                         </div>
                         
-                        {/* Pagination */}
                         <div className="flex justify-between items-center mt-6">
                             <span className="text-sm text-charcoal/70">Halaman {currentPage} dari {totalPages}</span>
                             <div className="flex space-x-2">

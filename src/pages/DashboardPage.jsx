@@ -1,7 +1,8 @@
 // src/pages/DashboardPage.jsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Clock } from 'lucide-react';
+import axiosClient from '../api/axiosClient';
+import toast from 'react-hot-toast';
 
 // Komponen Kalender Widget Fungsional
 const CalendarWidget = ({ reservations }) => {
@@ -85,26 +86,28 @@ const CalendarWidget = ({ reservations }) => {
     );
 };
 
-
 const DashboardPage = () => {
-    const [reservations, setReservations] = useState([]);
+    const [stats, setStats] = useState({
+        reservationsToday: 0,
+        bestSellerMenu: 'Memuat...',
+        averageRating: 0,
+        reservations: []
+    });
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Ambil data reservasi dari localStorage saat komponen dimuat
-        const savedReservations = JSON.parse(localStorage.getItem('reservations')) || [];
-        setReservations(savedReservations);
+        const fetchStats = async () => {
+            try {
+                const response = await axiosClient.get('/dashboard/stats');
+                setStats(response.data);
+            } catch (error) {
+                toast.error("Gagal memuat statistik dasbor.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStats();
     }, []);
-
-    // Data simulasi
-    const reservationsToday = reservations.filter(res => {
-        // Logika untuk mengecek apakah reservasi hari ini
-        const today = new Date(2025, 8, 5); // Simulasi hari ini adalah 5 September 2025
-        const resDate = new Date(res.date);
-        return resDate.toDateString() === today.toDateString();
-    }).length;
-
-    const bestSellerMenu = "Brulee Caramel Latte";
-    const averageRating = 4.8;
 
     return (
         <div className="bg-soft-white p-8 rounded-xl shadow-lg space-y-12">
@@ -118,15 +121,15 @@ const DashboardPage = () => {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div className="bg-cream p-6 rounded-lg border border-wood-brown/20">
                         <h3 className="font-bold text-charcoal">Reservasi Hari Ini</h3>
-                        <p className="font-serif font-black text-4xl text-wood-brown mt-2">{reservationsToday}</p>
+                        <p className="font-serif font-black text-4xl text-wood-brown mt-2">{loading ? '...' : stats.reservationsToday}</p>
                     </div>
                     <div className="bg-cream p-6 rounded-lg border border-wood-brown/20">
                         <h3 className="font-bold text-charcoal">Menu Terlaris</h3>
-                        <p className="font-serif font-black text-2xl text-wood-brown mt-2">{bestSellerMenu}</p>
+                        <p className="font-serif font-black text-2xl text-wood-brown mt-2">{loading ? '...' : stats.bestSellerMenu}</p>
                     </div>
                     <div className="bg-cream p-6 rounded-lg border border-wood-brown/20">
                         <h3 className="font-bold text-charcoal">Rating Rata-Rata</h3>
-                        <p className="font-serif font-black text-4xl text-wood-brown mt-2">{averageRating} <span className="text-2xl text-yellow-500">★</span></p>
+                        <p className="font-serif font-black text-4xl text-wood-brown mt-2">{loading ? '...' : stats.averageRating} <span className="text-2xl text-yellow-500">★</span></p>
                     </div>
                 </div>
             </section>
@@ -134,7 +137,7 @@ const DashboardPage = () => {
             <section className="grid md:grid-cols-2 gap-8">
                 <div>
                     <h2 className="font-bold text-xl text-charcoal mb-4">Kalender Reservasi</h2>
-                    <CalendarWidget reservations={reservations} />
+                    <CalendarWidget reservations={stats.reservations} />
                 </div>
                 <div>
                     <h2 className="font-bold text-xl text-charcoal mb-4">Grafik Reservasi (Mingguan)</h2>

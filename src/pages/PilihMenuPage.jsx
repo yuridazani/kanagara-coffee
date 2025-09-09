@@ -1,58 +1,110 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useMenu } from '../context/MenuContext';
-import { Plus, Minus, CheckCircle, Search } from 'lucide-react';
+import { Plus, Minus, CheckCircle } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import axiosClient from '../api/axiosClient';
+import toast from 'react-hot-toast';
 
 const PilihMenuPage = () => {
     const { reservationNumber } = useParams();
-    const { menuItems } = useMenu();
     
+    // --- 2. GANTI SUMBER DATA MENU ---
+    const [menuItems, setMenuItems] = useState([]); // <-- Awalnya array kosong
+    const [reservation, setReservation] = useState(null);
+    const [loading, setLoading] = useState(true);
+    
+    // State UI lainnya tetap sama
     const [selectedMenus, setSelectedMenus] = useState({});
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [activeCategory, setActiveCategory] = useState("All");
 
-    // Kategori menu dinamis
+    // --- 3. AMBIL DATA DARI BACKEND ---
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // Ambil data menu dari backend
+                const menuResponse = await axiosClient.get('/menus');
+                setMenuItems(menuResponse.data.data);
+
+                // Cari reservasi berdasarkan nomornya untuk mendapatkan ID
+                const resResponse = await axiosClient.post('/reservations/search', {
+                    reservationNumber: reservationNumber,
+                });
+                setReservation(resResponse.data.data);
+
+            } catch (error) {
+                toast.error("Gagal memuat data. Reservasi mungkin tidak ditemukan.");
+                console.error("Fetch data error:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [reservationNumber]);
+
+    // Logika UI untuk kategori, filter, dan kuantitas tidak perlu diubah
     const menuCategories = ["All", ...new Set(menuItems.map(item => item.category))];
     const filteredMenu = activeCategory === "All"
         ? menuItems
         : menuItems.filter(item => item.category === activeCategory);
 
-    // =======================================================
-    // ## PERBAIKAN UTAMA: LOGIKA HANDLE KUANTITAS ##
-    // =======================================================
     const handleQuantityChange = (item, amount) => {
-        // Ambil kuantitas saat ini dari state, atau 0 jika belum ada
         const currentQuantity = selectedMenus[item.id]?.quantity || 0;
         const newQuantity = Math.max(0, currentQuantity + amount);
-
-        // Buat salinan dari state yang ada
         const newSelection = { ...selectedMenus };
 
         if (newQuantity === 0) {
-            // Jika kuantitas menjadi 0, hapus item dari seleksi
             delete newSelection[item.id];
         } else {
-            // Jika tidak, perbarui atau tambahkan item dengan kuantitas baru
-            newSelection[item.id] = { ...item, quantity: newQuantity };
+            // Pastikan kita menyimpan semua data item, terutama 'price'
+            newSelection[item.id] = { 
+                id: item.id,
+                name: item.name,
+                price: item.price, // <-- Penting untuk disimpan
+                quantity: newQuantity 
+            };
         }
-        // Set state baru
         setSelectedMenus(newSelection);
     };
 
-    const handleSubmit = (e) => {
+    // --- 4. SAMBUNGKAN SUBMIT KE BACKEND ---
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const allReservations = JSON.parse(localStorage.getItem('reservations')) || [];
-        const updatedReservations = allReservations.map(res => 
-            res.reservationNumber === reservationNumber 
-            ? { ...res, status: 'Menu Dipilih', selectedMenus: Object.values(selectedMenus) } 
-            : res
-        );
-        localStorage.setItem('reservations', JSON.stringify(updatedReservations));
-        setIsSubmitted(true);
+        
+        if (Object.keys(selectedMenus).length === 0) {
+            toast.error("Anda belum memilih menu apapun.");
+            return;
+        }
+        if (!reservation) {
+            toast.error("Data reservasi tidak ditemukan, tidak bisa menyimpan menu.");
+            return;
+        }
+
+        const payload = {
+            selectedMenus: Object.values(selectedMenus)
+        };
+        
+        const toastId = toast.loading("Menyimpan pilihan menu...");
+
+        try {
+            // Gunakan ID reservasi untuk mengirim data ke backend
+            await axiosClient.post(`/reservations/${reservation.id}/select-menus`, payload);
+            toast.success("Pilihan menu berhasil disimpan!", { id: toastId });
+            setIsSubmitted(true);
+        } catch (error) {
+            toast.error("Gagal menyimpan pilihan menu.", { id: toastId });
+            console.error("Submit error:", error);
+        }
     };
 
+    // Tampilan Loading
+    if (loading) {
+        return <div className="text-center p-20">Memuat menu...</div>;
+    }
+    
+    // Tampilan setelah submit
     if (isSubmitted) {
         return (
             <div>
