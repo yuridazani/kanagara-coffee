@@ -1,45 +1,55 @@
 // src/components/GaleriSection.jsx
-
 import React from 'react';
 import { Instagram } from 'lucide-react';
-
-// Daftar gambar untuk galeri.
-const galleryImages = [
-    {
-        src: 'https://images.unsplash.com/photo-1511920183353-3c7c95a57424?q=80&w=1287&auto=format&fit=crop',
-        alt: 'Barista profesional sedang menyiapkan kopi spesial.',
-    },
-    {
-        src: 'https://images.unsplash.com/photo-1559925233-8d6342e8d354?q=80&w=1262&auto=format&fit=crop',
-        alt: 'Area duduk outdoor yang asri dan nyaman.',
-    },
-    {
-        src: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=1287&auto=format&fit=crop',
-        alt: 'Menikmati secangkir kopi hangat di pagi hari.',
-    },
-    {
-        src: 'https://images.unsplash.com/photo-1528699633785-6741409a6c76?q=80&w=1287&auto=format&fit=crop',
-        alt: 'Interior kafe dengan desain Joglo modern yang hangat.',
-    },
-    {
-        src: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1470&auto=format&fit=crop',
-        alt: 'Suasana ramai saat acara komunitas di Kanagara.',
-    },
-    {
-        src: 'https://images.unsplash.com/photo-1572498288022-203494aed9a5?q=80&w=1287&auto=format&fit=crop',
-        alt: 'Detail latte art yang dibuat dengan presisi tinggi.',
-    },
-    { // Tambahan gambar agar galeri lebih penuh
-        src: 'https://images.unsplash.com/photo-1534723447957-c3ac2c04f981?q=80&w=1287&auto=format&fit=crop',
-        alt: 'Pengunjung menikmati waktu di area lounge kafe.',
-    },
-    {
-        src: 'https://images.unsplash.com/photo-1543307771-55dc033878b2?q=80&w=1287&auto=format&fit=crop',
-        alt: 'Pilihan kue dan pastry segar yang lezat.',
-    },
-];
+import { useWebsiteContent } from '../context/WebsiteContext';
 
 const GaleriSection = () => {
+    const { gallery, loading } = useWebsiteContent();
+
+    // Default gallery images jika belum ada data dari backend
+    const defaultGalleryImages = [
+        {
+            src: 'https://images.unsplash.com/photo-1511920233353-3c7c95a57424?q=80&w=1287&auto=format&fit=crop',
+            alt: 'Barista profesional sedang menyiapkan kopi spesial.',
+        },
+        {
+            src: 'https://images.unsplash.com/photo-1559925233-8d6342e8d354?q=80&w=1262&auto=format&fit=crop',
+            alt: 'Area duduk outdoor yang asri dan nyaman.',
+        },
+        {
+            src: 'https://images.unsplash.com/photo-1542181961-9590d0c79dab?q=80&w=1470&auto=format&fit=crop',
+            alt: 'Interior modern dengan sentuhan tradisional Joglo.',
+        },
+        {
+            src: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?q=80&w=1470&auto=format&fit=crop',
+            alt: 'Berbagai pilihan kopi premium yang tersedia.',
+        },
+        {
+            src: 'https://images.unsplash.com/photo-1521017432531-fbd92d768814?q=80&w=1470&auto=format&fit=crop',
+            alt: 'Suasana hangat dan nyaman untuk bekerja atau bersantai.',
+        },
+        {
+            src: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1547&auto=format&fit=crop',
+            alt: 'Latte art yang indah dari barista berpengalaman.',
+        },
+        {
+            src: 'https://images.unsplash.com/photo-1515823064-d6e0c04616a7?q=80&w=1471&auto=format&fit=crop',
+            alt: 'Area meeting room privat untuk diskusi bisnis.',
+        },
+        {
+            src: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=1470&auto=format&fit=crop',
+            alt: 'Taman outdoor yang sejuk dan asri.',
+        }
+    ];
+
+    // Gunakan gallery dari context jika tersedia, fallback ke default
+    const galleryImages = !loading && gallery?.length > 0
+        ? gallery.map(img => ({
+            src: `http://localhost:8000/storage/${img.path}`,
+            alt: img.alt_text || 'Galeri Kanagara Coffee',
+        }))
+        : defaultGalleryImages;
+
     return (
         <section id="galeri" className="py-16 px-4 bg-cream">
             <div className="container mx-auto">
@@ -52,17 +62,14 @@ const GaleriSection = () => {
                     </p>
                 </div>
 
-                {/* Grid Galeri Foto yang Diperkecil */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" data-aos="fade-up" data-aos-delay="200">
                     {galleryImages.map((image, index) => (
                         <div key={index} className="relative group overflow-hidden rounded-lg shadow-lg cursor-pointer">
                             <img 
                                 src={image.src} 
                                 alt={image.alt} 
-                                // === PERUBAHAN UTAMA DI SINI ===
                                 className="w-full h-56 md:h-64 object-cover transform group-hover:scale-110 transition-transform duration-500 ease-in-out"
-                                // 'h-56' berarti tinggi tetap 14rem (sekitar 224px) di semua ukuran layar
-                                // 'md:h-64' membuat tingginya sedikit lebih besar di layar menengah ke atas (16rem atau 256px)
+                                loading="lazy"
                             />
                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                 <p className="text-white text-center text-xs md:text-sm">{image.alt}</p>
@@ -71,7 +78,6 @@ const GaleriSection = () => {
                     ))}
                 </div>
 
-                {/* Tombol Aksi (tidak berubah) */}
                 <div className="text-center mt-12" data-aos="fade-up">
                     <a 
                         href="https://www.instagram.com/kanagara.coffee/"

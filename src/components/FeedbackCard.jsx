@@ -1,4 +1,4 @@
-// src/components/FeedbackCard.jsx
+// frontend/src/components/FeedbackCard.jsx
 
 import React from 'react';
 import { Star, UserCircle, Coffee } from 'lucide-react';
@@ -31,31 +31,49 @@ export const StarRatingDisplay = ({ rating, size = 16 }) => (
     </div>
 );
 
-// Komponen untuk menampilkan satu kartu ulasan
+// ==========================================================
+// ## KOMPONEN UTAMA KARTU FEEDBACK (INI YANG DIPERBAIKI) ##
+// ==========================================================
 export const FeedbackCard = ({ feedback }) => {
+    const userName = feedback.name || 'Anonim';
+
     return (
-        <div className="bg-cream p-5 rounded-lg border border-wood-brown/10 w-full animate-fade-in">
+        <div className="bg-cream p-5 rounded-lg border border-wood-brown/10 w-full">
             <div className="flex items-start gap-4">
                 <UserCircle size={40} className="text-charcoal/50 flex-shrink-0" />
                 <div className="w-full">
                     <div className="flex justify-between items-center">
-                        <p className="font-bold text-charcoal">{feedback.name}</p>
-                        <p className="text-xs text-charcoal/60">{timeAgo(feedback.id)}</p>
+                        <p className="font-bold text-charcoal">{userName}</p>
+                        {/* Menggunakan created_at dari backend */}
+                        <p className="text-xs text-charcoal/60">{timeAgo(feedback.created_at)}</p> 
                     </div>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <StarRatingDisplay rating={feedback.cafeRating} />
                         <span className="text-xs text-charcoal/70">· Kunjungan pada {feedback.visitDate}</span>
                     </div>
                     <p className="italic text-charcoal/90 mt-3">"{feedback.cafeComment}"</p>
-                    {feedback.photoUrl && (
-                        <img src={feedback.photoUrl} alt="Feedback" className="mt-3 rounded-lg max-h-60 w-auto border shadow-sm" />
+                    
+                    {/* --- PERBAIKAN 1: Menampilkan Foto --- */}
+                    {/* Menggunakan `feedback.photo_path` BUKAN `feedback.photoUrl` */}
+                    {feedback.photo_path && (
+                        <a href={`http://localhost:8000/storage/${feedback.photo_path}`} target="_blank" rel="noopener noreferrer">
+                            <img 
+                                src={`http://localhost:8000/storage/${feedback.photo_path}`} 
+                                alt={`Ulasan dari ${userName}`} 
+                                className="mt-3 rounded-lg max-h-60 w-auto border shadow-sm"
+                            />
+                        </a>
                     )}
-                    {feedback.menuRatings && feedback.menuRatings.length > 0 && (
+                    
+                    {/* --- PERBAIKAN 2: Menampilkan Rating Menu --- */}
+                    {/* Laravel mengubah 'menuRatings' relasi menjadi 'menu_ratings' di JSON */}
+                    {feedback.menu_ratings && feedback.menu_ratings.length > 0 && (
                         <div className="mt-4 border-t border-wood-brown/10 pt-3">
                             <h4 className="font-semibold text-sm text-charcoal flex items-center gap-2"><Coffee size={16}/> Menu yang dinilai:</h4>
                             <div className="mt-2 space-y-1">
-                                {feedback.menuRatings.map((mr, index) => (
+                                {feedback.menu_ratings.map((mr, index) => (
                                     <div key={index} className="flex justify-between items-center text-sm">
+                                        {/* Database kolom menggunakan 'menuName' (camelCase) */}
                                         <span className="text-charcoal/80">{mr.menuName}</span>
                                         <StarRatingDisplay rating={mr.rating} size={14} />
                                     </div>

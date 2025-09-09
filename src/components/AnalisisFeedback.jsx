@@ -13,7 +13,8 @@ const AnalisisFeedback = ({ feedbackList }) => {
         const menuCounts = new Map();
 
         feedbackList.forEach(fb => {
-            fb.menuRatings?.forEach(mr => {
+            // PERUBAHAN: Gunakan menu_ratings (dengan underscore) bukan menuRatings
+            fb.menu_ratings?.forEach(mr => {
                 menuCounts.set(mr.menuName, (menuCounts.get(mr.menuName) || 0) + 1);
                 menuRatings.set(mr.menuName, (menuRatings.get(mr.menuName) || 0) + mr.rating);
             });

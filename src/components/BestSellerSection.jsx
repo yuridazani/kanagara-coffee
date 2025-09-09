@@ -1,69 +1,165 @@
 // src/components/BestSellerSection.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useMenu } from '../context/MenuContext';
+import { Star, TrendingUp, ChevronRight, Eye } from 'lucide-react';
+import axiosClient from '../api/axiosClient';
 
 const BestSellerSection = () => {
-    const { menuItems } = useMenu();
+    const [bestSellers, setBestSellers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    // Logika diubah: Filter menu yang memiliki tag "Best Seller"
-    const bestSellers = menuItems.filter(item => item.tag === "Best Seller");
+    useEffect(() => {
+        const fetchBestSellers = async () => {
+            try {
+                const response = await axiosClient.get('/menus');
+                // Ambil data dari backend dan filter yang punya tag "Best Seller"
+                // Limit hanya 4 item untuk menghemat space
+                const filtered = response.data.data
+                    .filter(item => item.tag === "Best Seller")
+                    .slice(0, 4);
+                setBestSellers(filtered);
+            } catch (error) {
+                console.error("Gagal memuat menu best seller:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchBestSellers();
+    }, []);
 
-    return (
-        <section id="best-sellers" className="py-16 px-4 bg-soft-white">
-            <div className="container mx-auto">
-                <div className="text-center mb-10" data-aos="fade-up">
-                    <h2 className="font-serif font-black text-4xl md:text-5xl text-wood-brown">
-                        Our Best Sellers
-                    </h2>
-                    <p className="mt-4 text-charcoal/80 max-w-lg mx-auto">
-                        Cicipi menu favorit yang paling sering dipesan oleh para pengunjung setia kami.
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat('id-ID', { 
+            style: 'currency', 
+            currency: 'IDR',
+            minimumFractionDigits: 0 
+        }).format(price);
+    };
+
+    const CompactMenuCard = ({ item }) => (
+        <div className="bg-cream rounded-lg border border-wood-brown/10 hover:shadow-md transition-all duration-200 hover:-translate-y-1 group">
+            <div className="relative">
+                <img
+                    src={`http://localhost:8000/storage/${item.image_path}`}
+                    alt={item.name}
+                    className="w-full h-32 object-cover rounded-t-lg"
+                />
+                {/* Best Seller Badge */}
+                <div className="absolute top-2 left-2 bg-wood-brown text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                    <TrendingUp size={10} />
+                    Best
+                </div>
+            </div>
+            
+            <div className="p-4">
+                <h3 className="font-semibold text-charcoal text-lg leading-tight mb-1">
+                    {item.name}
+                </h3>
+                <p className="text-xs text-charcoal/60 mb-2">
+                    {item.category}
+                </p>
+                <div className="flex justify-between items-center">
+                    <span className="font-bold text-wood-brown">
+                        {formatPrice(item.price)}
+                    </span>
+                    {/* Optional: Add rating if available */}
+                    {/* <div className="flex items-center gap-1">
+                        <Star size={12} className="text-yellow-400" fill="currentColor" />
+                        <span className="text-xs text-charcoal/70">4.8</span>
+                    </div> */}
+                </div>
+            </div>
+        </div>
+    );
+
+    const HorizontalMenuCard = ({ item }) => (
+        <div className="bg-cream rounded-lg border border-wood-brown/10 hover:shadow-md transition-all duration-200 flex overflow-hidden group">
+            <div className="relative w-20 h-20 flex-shrink-0">
+                <img
+                    src={`http://localhost:8000/storage/${item.image_path}`}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                />
+                <div className="absolute top-1 left-1 bg-wood-brown text-white text-xs px-1.5 py-0.5 rounded">
+                    <TrendingUp size={8} />
+                </div>
+            </div>
+            
+            <div className="flex-1 p-3 flex flex-col justify-between">
+                <div>
+                    <h4 className="font-semibold text-charcoal text-sm leading-tight mb-1">
+                        {item.name}
+                    </h4>
+                    <p className="text-xs text-charcoal/60">
+                        {item.category}
                     </p>
                 </div>
+                <div className="flex justify-between items-center">
+                    <span className="font-bold text-wood-brown text-sm">
+                        {formatPrice(item.price)}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
 
-                {bestSellers.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {bestSellers.map((item, index) => (
-                            <div
-                                key={item.id}
-                                className="bg-cream rounded-lg shadow-lg border border-wood-brown/10 transform hover:-translate-y-2 transition-transform duration-300"
-                                data-aos="fade-up"
-                                data-aos-delay={100 * index}
-                            >
-                                <img
-                                    src={item.imageUrl || 'https://via.placeholder.com/400x300.png?text=Kanagara'}
-                                    alt={item.name}
-                                    className="w-full h-56 object-cover rounded-t-lg"
-                                />
-                                <div className="p-6">
-                                    <h3 className="font-serif font-bold text-2xl text-charcoal">
-                                        {item.name}
-                                    </h3>
-                                    <p className="text-sm text-charcoal/60 mt-1">
-                                        {item.category}
-                                    </p>
-                                    <p className="font-bold text-lg text-wood-brown text-right mt-4">
-                                        {item.price}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
+    return (
+        <section id="best-sellers" className="py-10 px-4 bg-soft-white">
+            <div className="container mx-auto max-w-6xl">
+                {/* Compact Header */}
+                <div className="flex justify-between items-center mb-6" data-aos="fade-up">
+                    <div>
+                        <h2 className="font-serif font-bold text-2xl md:text-3xl text-wood-brown flex items-center gap-2">
+                            <TrendingUp size={24} className="text-wood-brown" />
+                            Menu Terfavorit
+                        </h2>
+                        <p className="mt-1 text-sm text-charcoal/70">
+                            Pilihan menu yang paling disukai pengunjung
+                        </p>
                     </div>
-                ) : (
-                    <div className="text-center p-8 bg-gray-50 rounded-lg" data-aos="fade-up">
-                        <p className="text-charcoal/70">Menu best seller belum diatur. Atur label "Best Seller" di halaman Kelola Menu.</p>
-                    </div>
-                )}
-
-
-                <div className="text-center mt-16" data-aos="fade-up">
+                    
                     <Link
                         to="/menu"
-                        className="bg-wood-brown text-soft-white font-bold py-3 px-8 rounded-full hover:bg-light-brown transition-colors"
+                        className="flex items-center gap-1 text-sm text-wood-brown hover:text-light-brown transition-colors font-medium"
                     >
-                        Lihat Menu Lengkap
+                        <Eye size={16} />
+                        Menu Lengkap
+                        <ChevronRight size={14} />
                     </Link>
                 </div>
+
+                {loading ? (
+                    <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-wood-brown mx-auto"></div>
+                    </div>
+                ) : bestSellers.length > 0 ? (
+                    <>
+                        {/* Desktop: Grid Layout */}
+                        <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-4" data-aos="fade-up">
+                            {bestSellers.map((item, index) => (
+                                <CompactMenuCard 
+                                    key={item.id} 
+                                    item={item}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Mobile: Horizontal Cards */}
+                        <div className="md:hidden space-y-3" data-aos="fade-up">
+                            {bestSellers.map((item, index) => (
+                                <HorizontalMenuCard 
+                                    key={item.id} 
+                                    item={item}
+                                />
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-center py-8 bg-cream/50 rounded-lg border border-wood-brown/10" data-aos="fade-up">
+                        <TrendingUp size={32} className="text-charcoal/30 mx-auto mb-2" />
+                        <p className="text-sm text-charcoal/70">Menu best seller belum diatur</p>
+                        <p className="text-xs text-charcoal/50">Atur label "Best Seller" di halaman Kelola Menu</p>
+                    </div>
+                )}
             </div>
         </section>
     );

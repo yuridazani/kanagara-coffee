@@ -1,7 +1,10 @@
-// src/components/BookingModal.jsx
+// frontend/src/components/BookingModal.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react'; // <-- Added useRef
 import { X, Send, CheckCircle } from 'lucide-react';
+import axiosClient from '../api/axiosClient';
+import toast from 'react-hot-toast';
+import ReCAPTCHA from "react-google-recaptcha"; // <-- Import ReCAPTCHA
 
 const BookingModal = ({ isOpen, onClose }) => {
     const [bookingType, setBookingType] = useState('meja');
@@ -12,37 +15,70 @@ const BookingModal = ({ isOpen, onClose }) => {
         name: '', whatsapp: '', date: '', time: '', people: 1, eventDetails: ''
     });
 
+    // --- STATE FOR LOADING ---
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // --- REF FOR RECAPTCHA ---
+    const recaptchaRef = useRef();
+
     const handleInputChange = (e) => {
         const { id, value } = e.target;
         setFormData(prev => ({ ...prev, [id]: value }));
     };
 
-    const handleSubmit = (e) => {
+    // --- UPDATED HANDLESUBMIT FUNCTION WITH RECAPTCHA ---
+    const handleSubmit = async (e) => {
         e.preventDefault();
         
-        // Generate Nomor Reservasi Unik
-        const year = new Date().getFullYear();
-        const randomNumber = Math.floor(1000 + Math.random() * 9000);
-        const reservationNumber = `RSV-${year}-${randomNumber}`;
+        // Verify reCAPTCHA
+        const recaptchaToken = recaptchaRef.current.getValue();
+        if (!recaptchaToken) {
+            toast.error("Mohon selesaikan verifikasi reCAPTCHA.");
+            return;
+        }
 
-        // Format nomor WhatsApp dengan kode negara +62
+        // Disable button to prevent double-clicking
+        setIsSubmitting(true); 
+
+        // Format WhatsApp number with country code +62
         const formattedWhatsApp = `+62${formData.whatsapp}`;
 
-        const newReservation = {
-            id: Date.now(),
-            reservationNumber,
+        const payload = {
             ...formData,
-            whatsapp: formattedWhatsApp, // Simpan dengan format lengkap
+            whatsapp: formattedWhatsApp,
             type: bookingType,
-            area: bookingType === 'meja' ? area : 'N/A',
-            status: 'Menunggu Konfirmasi',
+            area: bookingType === 'meja' ? area : null,
+            recaptcha_token: recaptchaToken, // <-- Send token to backend
         };
-        
-        const existingReservations = JSON.parse(localStorage.getItem('reservations')) || [];
-        localStorage.setItem('reservations', JSON.stringify([newReservation, ...existingReservations]));
-        
-        setSubmittedReservation(newReservation);
-        setIsSubmitted(true);
+
+        console.log('Sending payload:', payload); // Debug log
+
+        const toastId = toast.loading("Mengirim reservasi...");
+
+        try {
+            // Send data to backend
+            const response = await axiosClient.post('/reservations', payload);
+            
+            // Debug log to ensure response
+            console.log('Response from backend:', response.data);
+            
+            // Save returned data for display
+            setSubmittedReservation(response.data.data);
+            setIsSubmitted(true);
+            toast.success("Reservasi berhasil terkirim!", { id: toastId });
+
+        } catch (error) {
+            // Debug log to see error details
+            console.error('Full error:', error);
+            console.error('Error response:', error.response?.data);
+            
+            const errorMessage = error.response?.data?.message || "Gagal mengirim reservasi. Silakan coba lagi.";
+            toast.error(errorMessage, { id: toastId });
+        } finally {
+            // Re-enable button after process completes (success or failure)
+            setIsSubmitting(false);
+            recaptchaRef.current.reset(); // Reset reCAPTCHA after submit
+        }
     };
 
     const handleClose = () => {
@@ -62,13 +98,15 @@ const BookingModal = ({ isOpen, onClose }) => {
                 <button onClick={handleClose} className="absolute top-4 right-4 text-charcoal/50 hover:text-charcoal"><X /></button>
                 <div className="p-8">
                     {isSubmitted ? (
-                        // --- TAMPILAN SUKSES ---
+                        // --- SUCCESS DISPLAY ---
                         <div className="text-center py-10">
                             <CheckCircle size={50} className="text-leaf-green mx-auto mb-4" />
                             <h3 className="font-serif font-bold text-2xl text-wood-brown">Reservasi Terkirim!</h3>
                             <p className="mt-2 text-charcoal/80">Silakan catat Nomor Reservasi Anda di bawah ini untuk melacak status pesanan.</p>
                             <div className="my-6 p-4 bg-cream border-2 border-dashed border-wood-brown/50 rounded-lg">
-                                <p className="font-mono text-2xl font-bold text-wood-brown">{submittedReservation.reservationNumber}</p>
+                                <p className="font-mono text-2xl font-bold text-wood-brown">
+                                    {submittedReservation?.reservationNumber || 'Loading...'}
+                                </p>
                             </div>
                             <p className="text-xs text-charcoal/60">
                                 (Sangat disarankan untuk melakukan screenshot bagian ini)
@@ -134,8 +172,26 @@ const BookingModal = ({ isOpen, onClose }) => {
                                     </div>
                                 )}
                                 
+                                {/* --- ADD RECAPTCHA COMPONENT HERE --- */}
+                                <div className="pt-4 border-t">
+                                    <ReCAPTCHA
+                                        ref={recaptchaRef}
+                                        sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+                                    />
+                                </div>
+                                
                                 <p className="text-xs text-charcoal/70 pt-4 border-t">*Tim kami akan menghubungi Anda melalui WhatsApp untuk konfirmasi ketersediaan dan detail lebih lanjut.</p>
-                                <button type="submit" className="w-full bg-wood-brown hover:bg-light-brown text-white font-bold py-3 px-6 rounded-full flex items-center justify-center space-x-2"><Send size={20} /><span>Kirim Reservasi</span></button>
+                                
+                                {/* --- UPDATED SUBMIT BUTTON --- */}
+                                <button 
+                                    type="submit" 
+                                    disabled={isSubmitting} // <-- Added disabled property
+                                    className="w-full bg-wood-brown hover:bg-light-brown text-white font-bold py-3 px-6 rounded-full flex items-center justify-center space-x-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                    <Send size={20} />
+                                    {/* Change button text when loading */}
+                                    <span>{isSubmitting ? 'Mengirim...' : 'Kirim Reservasi'}</span>
+                                </button>
                             </form>
                         </>
                     )}
