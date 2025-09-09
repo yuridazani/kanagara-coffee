@@ -41,6 +41,8 @@ import DashboardLayout from './DashboardLayout';
 // ===== Impor Context =====
 import { MenuProvider } from './context/MenuContext';
 
+import ProtectedRoute from './components/ProtectedRoute';
+
 function App() {
     useEffect(() => {
         AOS.init({ duration: 1000, once: true, offset: 50 });
@@ -63,6 +65,7 @@ function App() {
                     <Route path="/login" element={<LoginPage />} />
 
                     {/* Rute untuk Dashboard */}
+                    <Route element={<ProtectedRoute />}>
                     <Route element={<DashboardLayout />}>
                         <Route path="/dashboard" element={<DashboardPage />} />
                         <Route path="/dashboard/menu" element={<KelolaMenuPage />} />
@@ -70,6 +73,7 @@ function App() {
                         <Route path="/dashboard/feedback" element={<KelolaFeedbackPage />} />
                         <Route path="/dashboard/settings" element={<SettingsPage />} />
                         <Route path="/dashboard/website" element={<KelolaWebsitePage />} />
+                    </Route>
                     </Route>
                 </Routes>
             </BrowserRouter>
